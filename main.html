@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VALTO Habit Tracker</title>
+  <style>
+    :root {
+      --green: #4caf50; --gray: #eee; --dark: #333; --light: #f9f9f9;
+      --border: #ddd; --accent: #2196f3; --red: #f44336;
+    }
+    body { font-family: 'Segoe UI', sans-serif; background: #fafafa; color: var(--dark); margin: 0; padding: 20px; }
+    .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #555; margin-bottom: 10px; }
+    .status { text-align: center; padding: 12px; background: #e3f2fd; border-radius: 6px; font-weight: 600; margin-bottom: 15px; }
+    .password-screen { text-align: center; padding: 40px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; }
+    .password-screen input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; }
+    .password-screen button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+    .password-screen button:hover { opacity: 0.9; }
+    .hidden { display: none; }
+    .progress-bar { background: var(--gray); height: 20px; border-radius: 10px; overflow: hidden; margin-top: 5px; }
+    .progress-fill { height: 100%; background: var(--green); width: 0%; transition: width 0.4s ease; }
+    .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .btn:hover { opacity: 0.9; }
+    .add-habit { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+    .add-habit input, .add-habit select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+    .habit-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; }
+    .habit-item .icon { font-size: 20px; }
+    .habit-item .delete { margin-left: auto; background: var(--red); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--border); text-align: center; padding: 6px 2px; min-width: 28px; }
+    th { background: #f5f5f5; font-weight: 600; }
+    .habit-name { text-align: left; padding-left: 10px; white-space: nowrap; font-weight: 500; }
+    input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+    .weekend { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+
+  <!-- ЭКРАН ПАРОЛЯ + API КЛЮЧ -->
+  <div id="password-screen" class="password-screen">
+    <h2>VALTO Трекер</h2>
+    <p>Введи: <code>пароль API_КЛЮЧ</code></p>
+    <input type="password" id="secret-input" placeholder="Например: valto2025 AIzaSy..." />
+    <button id="unlock-btn">Войти</button>
+    <p style="font-size:12px; color:#666; margin-top:20px;">
+      Ключ вводишь только ты. Никто не увидит.
+    </p>
+  </div>
+
+  <!-- ТРЕКЕР -->
+  <div id="tracker" class="container hidden">
+    <h1>Сентябрь 2025</h1>
+    <div class="status" id="status">Загрузка...</div>
+
+    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; font-size:14px;">
+      <div>Привычек: <strong id="habit-count">0</strong></div>
+      <div>Выполнено: <strong id="done-count">0</strong></div>
+      <div style="flex:1; min-width:200px;">
+        <div>Прогресс: <strong id="progress-percent">0%</strong></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <div>Прогноз: <strong id="forecast">0%</strong></div>
+    </div>
+
+    <div class="add-habit">
+      <input type="text" id="new-habit-name" placeholder="Название" />
+      <input type="text" id="new-habit-icon" placeholder="Иконка" value="Check" />
+      <input type="color" id="new-habit-color" value="#4caf50" />
+      <button class="btn" id="add-habit-btn">+ Добавить</button>
+    </div>
+
+    <div id="habit-list"></div>
+
+    <div style="overflow-x:auto; margin:30px 0;">
+      <table id="habit-table">
+        <thead><tr><th class="habit-name">Привычки</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FIREBASE + CRYPTO -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+
+  <script>
+    // === КОНФИГ БЕЗ КЛЮЧА (для GitHub) ===
+    const CONFIG_TEMPLATE = {
+      authDomain: "habit-tracker-valto.firebaseapp.com",
+      databaseURL: "https://habit-tracker-valto-default-rtdb.firebaseio.com",
+      projectId: "habit-tracker-valto",
+      storageBucket: "habit-tracker-valto.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdef123456"
+    };
+
+    const CORRECT_PASSWORD = "valto2025"; // ← ТВОЙ ПАРОЛЬ
+    const SHARED_USER_ID = "valto-shared-user-2025";
+
+    let userId = null;
+    let db = null;
+
+    // === ЭКРАН ВВОДА ===
+    document.getElementById('unlock-btn').onclick = () => {
+      const input = document.getElementById('secret-input').value.trim();
+      const [password, apiKey] = input.split(' ');
+
+      if (password === CORRECT_PASSWORD && apiKey && apiKey.startsWith('AIzaSy')) {
+        document.getElementById('password-screen').classList.add('hidden');
+        document.getElementById('tracker').classList.remove('hidden');
+        initFirebase(apiKey);
+      } else {
+        alert('Неверный пароль или ключ!');
+      }
+    };
+
+    // === ИНИЦИАЛИЗАЦИЯ FIREBASE ===
+    function initFirebase(apiKey) {
+      const config = { ...CONFIG_TEMPLATE, apiKey };
+      firebase.initializeApp(config);
+      db = firebase.database();
+
+      userId = SHARED_USER_ID;
+      document.getElementById('status').textContent = 'Синхронизация активна (безопасно)';
+      loadData();
+      setInterval(saveData, 5000);
+    }
+
+    // === ШИФРОВАНИЕ ===
+    function encrypt(data) {
+      return CryptoJS.AES.encrypt(JSON.stringify(data), CORRECT_PASSWORD).toString();
+    }
+    function decrypt(encrypted) {
+      try {
+        const bytes = CryptoJS.AES.decrypt(encrypted, CORRECT_PASSWORD);
+        return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+      } catch (e) { return null; }
+    }
+
+    // === ДАННЫЕ ===
+    let habits = [], habitData = {}, moodData = {};
+    const daysInMonth = 30;
+
+    function loadData() {
+      db.ref('secure/' + SHARED_USER_ID).once('value').then(snapshot => {
+        const encrypted = snapshot.val();
+        if (encrypted) {
+          const decrypted = decrypt(encrypted);
+          if (decrypted) {
+            habits = decrypted.habits || [];
+            habitData = decrypted.habitData || {};
+          }
+        }
+        initEmptyData();
+        renderAll();
+      });
+    }
+
+    function saveData() {
+      if (!userId || !db) return;
+      const data = { habits, habitData, moodData };
+      const encrypted = encrypt(data);
+      db.ref('secure/' + SHARED_USER_ID).set(encrypted);
+    }
+
+    function initEmptyData() {
+      habits.forEach((h, i) => {
+        if (!habitData[i]) habitData[i] = {};
+        for (let d = 1; d <= daysInMonth; d++) {
+          if (!habitData[i][d]) habitData[i][d] = false;
+        }
+      });
+    }
+
+    function renderAll() {
+      renderHabitList();
+      renderCalendar();
+      updateProgress();
+    }
+
+    function renderHabitList() {
+      const container = document.getElementById('habit-list');
+      container.innerHTML = '';
+      habits.forEach((h, i) => {
+        const div = document.createElement('div');
+        div.className = 'habit-item';
+        div.innerHTML = `
+          <span class="icon" style="color:${h.color}">${h.icon}</span>
+          <span>${h.name}</span>
+          <button class="delete" onclick="deleteHabit(${i})">×</button>
+        `;
+        container.appendChild(div);
+      });
+      document.getElementById('habit-count').textContent = habits.length;
+    }
+
+    window.deleteHabit = function(index) {
+      habits.splice(index, 1);
+      delete habitData[index];
+      const newData = {};
+      let newIdx = 0;
+      for (let key in habitData) {
+        if (key != index) newData[newIdx++] = habitData[key];
+      }
+      habitData = newData;
+      saveData();
+      renderAll();
+    };
+
+    document.getElementById('add-habit-btn').onclick = () => {
+      const name = document.getElementById('new-habit-name').value.trim();
+      const icon = document.getElementById('new-habit-icon').value || "Check";
+      const color = document.getElementById('new-habit-color').value;
+      if (!name) return alert('Введите название');
+      habits.push({ name, icon, color });
+      habitData[habits.length - 1] = {};
+      for (let d = 1; d <= daysInMonth; d++) {
+        habitData[habits.length - 1][d] = false;
+      }
+      document.getElementById('new-habit-name').value = '';
+      saveData();
+      renderAll();
+    };
+
+    function renderCalendar() {
+      const thead = document.querySelector('#habit-table thead tr');
+      const tbody = document.querySelector('#habit-table tbody');
+      thead.innerHTML = '<th class="habit-name">Привычки</th>';
+      tbody.innerHTML = '';
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(2025, 8, day);
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        const th = document.createElement('th');
+        th.textContent = day;
+        th.className = isWeekend ? 'weekend' : '';
+        thead.appendChild(th);
+      }
+
+      habits.forEach((habit, hIndex) => {
+        const tr = document.createElement('tr');
+        const nameTd = document.createElement('td');
+        nameTd.className = 'habit-name';
+        nameTd.innerHTML = `<span style="color:${habit.color}">${habit.icon}</span> ${habit.name}`;
+        tr.appendChild(nameTd);
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const td = document.createElement('td');
+          const isWeekend = new Date(2025, 8, day).getDay() === 0 || new Date(2025, 8, day).getDay() === 6;
+          if (isWeekend) td.className = 'weekend';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = habitData[hIndex]?.[day] || false;
+          checkbox.onchange = () => {
+            habitData[hIndex][day] = checkbox.checked;
+            saveData();
+            updateProgress();
+          };
+          td.appendChild(checkbox);
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateProgress() {
+      let total = 0, done = 0;
+      for (let h in habitData) {
+        for (let d in habitData[h]) {
+          total++;
+          if (habitData[h][d]) done++;
+        }
+      }
+      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+      document.getElementById('done-count').textContent = done;
+      document.getElementById('progress-percent').textContent = percent + '%';
+      document.getElementById('progress-fill').style.width = percent + '%';
+      document.getElementById('forecast').textContent = percent + '%';
+    }
+  </script>
+</body>
+</html>
