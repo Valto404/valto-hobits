@@ -3,90 +3,138 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VALTO Habit Tracker</title>
+  <title>VALTO Habit Tracker PRO</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
   <style>
     :root {
-      --green: #4caf50; --gray: #eee; --dark: #333; --light: #f9f9f9;
-      --border: #ddd; --accent: #2196f3; --red: #f44336;
+      --bg-primary: #121212;
+      --bg-secondary: #1e1e1e;
+      --text-primary: #ffffff;
+      --text-secondary: #b3b3b3;
+      --accent: linear-gradient(45deg, #4caf50, #2196f3);
+      --neon-green: #00ff88;
+      --neon-blue: #00bfff;
+      --red: #ff4757;
+      --border: #333;
+      --shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    body { font-family: 'Segoe UI', sans-serif; background: #fafafa; color: var(--dark); margin: 0; padding: 20px; }
-    .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1 { text-align: center; color: #555; margin-bottom: 10px; }
-    .status { text-align: center; padding: 12px; background: #e3f2fd; border-radius: 6px; font-weight: 600; margin-bottom: 15px; }
-    .password-screen { text-align: center; padding: 40px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; }
-    .password-screen input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 6px; font-size: 16px; }
-    .password-screen button { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
-    .password-screen button:hover { opacity: 0.9; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', sans-serif; 
+      background: var(--bg-primary); 
+      color: var(--text-primary); 
+      overflow-x: hidden; 
+      transition: all 0.3s ease;
+    }
+    .container { max-width: 1200px; margin: auto; padding: 20px; }
+    h1 { text-align: center; background: var(--accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px; font-size: 2.5em; }
+    .status { text-align: center; padding: 15px; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: var(--shadow); }
+    .password-screen { 
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+      background: var(--bg-primary); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000;
+      animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .password-screen input { width: 80%; max-width: 300px; padding: 15px; margin: 10px; border: none; border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 16px; }
+    .password-screen button { background: var(--accent); color: white; border: none; padding: 15px 30px; border-radius: 8px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
+    .password-screen button:hover { transform: scale(1.05); }
     .hidden { display: none; }
-    .progress-bar { background: var(--gray); height: 20px; border-radius: 10px; overflow: hidden; margin-top: 5px; }
-    .progress-fill { height: 100%; background: var(--green); width: 0%; transition: width 0.4s ease; }
-    .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-    .btn:hover { opacity: 0.9; }
-    .add-habit { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
-    .add-habit input, .add-habit select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
-    .habit-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; }
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; background: var(--bg-secondary); padding: 15px; border-radius: 12px; }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s ease; border-radius: 10px; }
+    .add-habit { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; background: var(--bg-secondary); padding: 15px; border-radius: 12px; }
+    .add-habit input, .add-habit select { padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); flex: 1; min-width: 120px; }
+    .habit-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--neon-green); }
     .habit-item .icon { font-size: 20px; }
-    .habit-item .delete { margin-left: auto; background: var(--red); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+    .habit-item .importance { flex: 1; }
+    .habit-item .delete { background: var(--red); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+    .calendar { overflow-x: auto; margin: 20px 0; background: var(--bg-secondary); border-radius: 12px; padding: 15px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid var(--border); text-align: center; padding: 6px 2px; min-width: 28px; }
-    th { background: #f5f5f5; font-weight: 600; }
+    th, td { border: 1px solid var(--border); text-align: center; padding: 8px 4px; min-width: 30px; }
+    th { background: var(--bg-primary); color: var(--neon-blue); }
     .habit-name { text-align: left; padding-left: 10px; white-space: nowrap; font-weight: 500; }
-    input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
-    .weekend { background: #f0f0f0; }
+    input[type="checkbox"] { transform: scale(1.5); cursor: pointer; accent-color: var(--neon-green); }
+    .weekend { background: rgba(0,191,255,0.1); }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 30px 0; }
+    .chart-container { background: var(--bg-secondary); padding: 20px; border-radius: 12px; box-shadow: var(--shadow); }
+    .chart-title { text-align: center; margin-bottom: 15px; color: var(--neon-blue); }
+    canvas { max-height: 300px; }
+    .slider { width: 100%; margin: 10px 0; }
+    /* МОБИЛКА */
+    @media (max-width: 768px) { 
+      body { padding: 10px; } 
+      .add-habit { flex-direction: column; } 
+      .header { flex-direction: column; text-align: center; } 
+      table { font-size: 10px; } 
+      th, td { padding: 4px; min-width: 25px; } 
+      .charts { grid-template-columns: 1fr; } 
+    }
   </style>
 </head>
 <body>
 
-  <!-- ЭКРАН ПАРОЛЯ + API КЛЮЧ -->
+  <!-- ЭКРАН ПАРОЛЯ -->
   <div id="password-screen" class="password-screen">
-    <h2>VALTO Трекер</h2>
-    <p>Введи: <code>пароль API_КЛЮЧ</code></p>
-    <input type="password" id="secret-input" placeholder="Например: valto2025 AIzaSy..." />
+    <h2 style="background: var(--accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">VALTO PRO</h2>
+    <p>Введи: пароль API_КЛЮЧ (один раз — запомнит)</p>
+    <input type="password" id="secret-input" placeholder="valto2025 AIzaSy..." />
     <button id="unlock-btn">Войти</button>
-    <p style="font-size:12px; color:#666; margin-top:20px;">
-      Ключ вводишь только ты. Никто не увидит.
-    </p>
   </div>
 
   <!-- ТРЕКЕР -->
   <div id="tracker" class="container hidden">
-    <h1>Сентябрь 2025</h1>
+    <h1>Твой Трекер</h1>
     <div class="status" id="status">Загрузка...</div>
 
-    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; font-size:14px;">
+    <div class="header">
       <div>Привычек: <strong id="habit-count">0</strong></div>
       <div>Выполнено: <strong id="done-count">0</strong></div>
       <div style="flex:1; min-width:200px;">
         <div>Прогресс: <strong id="progress-percent">0%</strong></div>
-        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div style="background:var(--border); height:8px; border-radius:4px; overflow:hidden;"><div class="progress-fill" id="progress-fill"></div></div>
       </div>
       <div>Прогноз: <strong id="forecast">0%</strong></div>
     </div>
 
     <div class="add-habit">
       <input type="text" id="new-habit-name" placeholder="Название" />
-      <input type="text" id="new-habit-icon" placeholder="Иконка" value="Check" />
+      <input type="text" id="new-habit-icon" placeholder="Иконка" value="✅" />
+      <input type="range" id="new-habit-importance" class="slider" min="1" max="10" value="5" />
+      <span id="importance-value">5</span>
       <input type="color" id="new-habit-color" value="#4caf50" />
       <button class="btn" id="add-habit-btn">+ Добавить</button>
     </div>
 
     <div id="habit-list"></div>
 
-    <div style="overflow-x:auto; margin:30px 0;">
+    <div class="calendar">
       <table id="habit-table">
         <thead><tr><th class="habit-name">Привычки</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
+
+    <div class="charts">
+      <div class="chart-container">
+        <div class="chart-title">Прогресс по дням</div>
+        <canvas id="progress-chart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Распределение по важности</div>
+        <canvas id="importance-chart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Радар стиля жизни</div>
+        <canvas id="radar-chart"></canvas>
+      </div>
+    </div>
   </div>
 
-  <!-- FIREBASE + CRYPTO -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
-
   <script>
-    // === КОНФИГ БЕЗ КЛЮЧА (для GitHub) ===
+    // === CONFIG TEMPLATE ===
     const CONFIG_TEMPLATE = {
       authDomain: "habit-tracker-valto.firebaseapp.com",
       databaseURL: "https://habit-tracker-valto-default-rtdb.firebaseio.com",
@@ -96,36 +144,52 @@
       appId: "1:123456789:web:abcdef123456"
     };
 
-    const CORRECT_PASSWORD = "valto2025"; // ← ТВОЙ ПАРОЛЬ
+    const CORRECT_PASSWORD = "valto2025";
     const SHARED_USER_ID = "valto-shared-user-2025";
 
     let userId = null;
     let db = null;
+    let habits = [], habitData = {}, moodData = {};
+    let progressChart, importanceChart, radarChart;
+    const daysInMonth = 30;
 
-    // === ЭКРАН ВВОДА ===
+    // === ПРОВЕРКА СОХРАНЁННОГО ПАРОЛЯ ===
+    window.onload = () => {
+      const savedCreds = localStorage.getItem('valto-creds');
+      if (savedCreds) {
+        const { password, apiKey } = JSON.parse(savedCreds);
+        if (password === CORRECT_PASSWORD && apiKey.startsWith('AIzaSy')) {
+          document.getElementById('password-screen').classList.add('hidden');
+          document.getElementById('tracker').classList.remove('hidden');
+          initFirebase(apiKey);
+          return;
+        }
+      }
+      // Иначе показываем экран пароля
+    };
+
     document.getElementById('unlock-btn').onclick = () => {
       const input = document.getElementById('secret-input').value.trim();
       const [password, apiKey] = input.split(' ');
-
-      if (password === CORRECT_PASSWORD && apiKey && apiKey.startsWith('AIzaSy')) {
+      if (password === CORRECT_PASSWORD && apiKey.startsWith('AIzaSy')) {
+        localStorage.setItem('valto-creds', JSON.stringify({ password, apiKey })); // Сохраняем зашифровано? Для простоты — так
         document.getElementById('password-screen').classList.add('hidden');
         document.getElementById('tracker').classList.remove('hidden');
         initFirebase(apiKey);
       } else {
-        alert('Неверный пароль или ключ!');
+        alert('Неверный ввод!');
       }
     };
 
-    // === ИНИЦИАЛИЗАЦИЯ FIREBASE ===
     function initFirebase(apiKey) {
       const config = { ...CONFIG_TEMPLATE, apiKey };
       firebase.initializeApp(config);
       db = firebase.database();
-
       userId = SHARED_USER_ID;
-      document.getElementById('status').textContent = 'Синхронизация активна (безопасно)';
+      document.getElementById('status').textContent = 'Синхронизация активна';
       loadData();
       setInterval(saveData, 5000);
+      document.getElementById('new-habit-importance').oninput = (e) => document.getElementById('importance-value').textContent = e.target.value;
     }
 
     // === ШИФРОВАНИЕ ===
@@ -138,10 +202,6 @@
         return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
       } catch (e) { return null; }
     }
-
-    // === ДАННЫЕ ===
-    let habits = [], habitData = {}, moodData = {};
-    const daysInMonth = 30;
 
     function loadData() {
       db.ref('secure/' + SHARED_USER_ID).once('value').then(snapshot => {
@@ -159,7 +219,7 @@
     }
 
     function saveData() {
-      if (!userId || !db) return;
+      if (!db) return;
       const data = { habits, habitData, moodData };
       const encrypted = encrypt(data);
       db.ref('secure/' + SHARED_USER_ID).set(encrypted);
@@ -178,6 +238,7 @@
       renderHabitList();
       renderCalendar();
       updateProgress();
+      renderCharts();
     }
 
     function renderHabitList() {
@@ -189,6 +250,7 @@
         div.innerHTML = `
           <span class="icon" style="color:${h.color}">${h.icon}</span>
           <span>${h.name}</span>
+          <div class="importance">Важность: ${h.importance}/10</div>
           <button class="delete" onclick="deleteHabit(${i})">×</button>
         `;
         container.appendChild(div);
@@ -202,7 +264,7 @@
       const newData = {};
       let newIdx = 0;
       for (let key in habitData) {
-        if (key != index) newData[newIdx++] = habitData[key];
+        if (parseInt(key) !== index) newData[newIdx++] = habitData[key];
       }
       habitData = newData;
       saveData();
@@ -211,15 +273,19 @@
 
     document.getElementById('add-habit-btn').onclick = () => {
       const name = document.getElementById('new-habit-name').value.trim();
-      const icon = document.getElementById('new-habit-icon').value || "Check";
+      const icon = document.getElementById('new-habit-icon').value || "✅";
+      const importance = parseInt(document.getElementById('new-habit-importance').value);
       const color = document.getElementById('new-habit-color').value;
-      if (!name) return alert('Введите название');
-      habits.push({ name, icon, color });
+      if (!name) return alert('Название обязательно');
+      habits.push({ name, icon, importance, color });
       habitData[habits.length - 1] = {};
       for (let d = 1; d <= daysInMonth; d++) {
         habitData[habits.length - 1][d] = false;
       }
       document.getElementById('new-habit-name').value = '';
+      document.getElementById('new-habit-icon').value = "✅";
+      document.getElementById('new-habit-importance').value = 5;
+      document.getElementById('new-habit-color').value = "#4caf50";
       saveData();
       renderAll();
     };
@@ -228,8 +294,6 @@
       const thead = document.querySelector('#habit-table thead tr');
       const tbody = document.querySelector('#habit-table tbody');
       thead.innerHTML = '<th class="habit-name">Привычки</th>';
-      tbody.innerHTML = '';
-
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(2025, 8, day);
         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -238,12 +302,13 @@
         th.className = isWeekend ? 'weekend' : '';
         thead.appendChild(th);
       }
+      tbody.innerHTML = '';
 
       habits.forEach((habit, hIndex) => {
         const tr = document.createElement('tr');
         const nameTd = document.createElement('td');
         nameTd.className = 'habit-name';
-        nameTd.innerHTML = `<span style="color:${habit.color}">${habit.icon}</span> ${habit.name}`;
+        nameTd.innerHTML = `<span style="color:${habit.color}">${habit.icon}</span> ${habit.name} (важ: ${habit.importance})`;
         tr.appendChild(nameTd);
 
         for (let day = 1; day <= daysInMonth; day++) {
@@ -258,6 +323,7 @@
             habitData[hIndex][day] = checkbox.checked;
             saveData();
             updateProgress();
+            renderCharts();
           };
           td.appendChild(checkbox);
           tr.appendChild(td);
@@ -267,18 +333,62 @@
     }
 
     function updateProgress() {
-      let total = 0, done = 0;
+      let total = 0, weightedDone = 0;
+      let totalImportance = 0;
       for (let h in habitData) {
+        const habit = habits[h];
+        if (!habit) continue;
         for (let d in habitData[h]) {
           total++;
-          if (habitData[h][d]) done++;
+          if (habitData[h][d]) weightedDone += habit.importance;
+          totalImportance += habit.importance;
         }
       }
-      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-      document.getElementById('done-count').textContent = done;
+      const percent = total > 0 ? Math.round((weightedDone / totalImportance) * 100) : 0;
+      document.getElementById('done-count').textContent = Math.round(weightedDone);
       document.getElementById('progress-percent').textContent = percent + '%';
       document.getElementById('progress-fill').style.width = percent + '%';
       document.getElementById('forecast').textContent = percent + '%';
+    }
+
+    function renderCharts() {
+      // Прогресс по дням (линия)
+      const dailyData = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        let done = 0, impSum = 0;
+        habits.forEach((h, i) => {
+          if (habitData[i]?.[day]) done += h.importance;
+          impSum += h.importance;
+        });
+        dailyData.push(impSum > 0 ? (done / impSum) * 100 : 0);
+      }
+      if (progressChart) progressChart.destroy();
+      progressChart = new Chart(document.getElementById('progress-chart').getContext('2d'), {
+        type: 'line',
+        data: { labels: Array.from({length: daysInMonth}, (_, i) => i+1), datasets: [{ label: 'Прогресс %', data: dailyData, borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.2)', tension: 0.4 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { labels: { color: 'white' } } }, elements: { point: { radius: 4 } } }
+      });
+
+      // По важности (круговая)
+      const impData = habits.reduce((acc, h) => { acc[h.importance] = (acc[h.importance] || 0) + 1; return acc; }, {});
+      const impLabels = Object.keys(impData).map(k => `${k}/10`);
+      const impValues = Object.values(impData);
+      if (importanceChart) importanceChart.destroy();
+      importanceChart = new Chart(document.getElementById('importance-chart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: impLabels, datasets: [{ data: impValues, backgroundColor: ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#ff6b9d', '#a55eea', '#00d2d3', '#ff9ff3', '#54a0ff', '#5f27cd'] }] },
+        options: { responsive: true, plugins: { legend: { labels: { color: 'white' } } } }
+      });
+
+      // Радар (по категориям, симуляция)
+      const radarLabels = ['Здоровье', 'Работа', 'Обучение', 'Отдых', 'Финансы'];
+      const radarData = radarLabels.map(() => Math.random() * 100);
+      if (radarChart) radarChart.destroy();
+      radarChart = new Chart(document.getElementById('radar-chart').getContext('2d'), {
+        type: 'radar',
+        data: { labels: radarLabels, datasets: [{ label: 'Стиль жизни', data: radarData, borderColor: '#00bfff', backgroundColor: 'rgba(0,191,255,0.2)' }] },
+        options: { responsive: true, scales: { r: { beginAtZero: true, max: 100, ticks: { color: 'white' }, grid: { color: '#333' } } }, plugins: { legend: { labels: { color: 'white' } } } }
+      });
     }
   </script>
 </body>
